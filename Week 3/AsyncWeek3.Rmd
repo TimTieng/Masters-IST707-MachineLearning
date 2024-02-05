@@ -1,0 +1,154 @@
+---
+title: "Async3"
+output: html_document
+date: "2023-07-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# Async 3.6 question - Calculate the lift of rules {A}->{D} and {D}->{A}
+
+# Load the "arules" package
+# install.packages("arules")
+library(arules)
+
+# Create the transaction dataset in a list format
+transactions_list <- list(
+  c("A", "B", "D"),
+  c("A", "C", "D"),
+  c("A", "D", "E"),
+  c("B", "E", "F"),
+  c("B", "C", "D", "E", "F")
+)
+
+# Convert the list to a one-hot encoded matrix
+transaction_matrix <- as(
+  transactions_list,
+  "transactions"
+)
+
+# Mine association rules using apriori
+rules <- apriori(
+  transaction_matrix,
+  parameter = list(support = 0.2, confidence = 0.6, target = "rules")
+)
+
+# Filter the rules to get only the ones we are interested in
+lift_rules <- subset(rules, subset = rhs %in% c("D", "A"))
+
+# Display the lift rules
+inspect(lift_rules)
+lift_rules
+
+```
+```{r}
+# Load Packages
+library(arules)
+library(arulesViz)
+library(datasets)
+
+# Load the Dataset 
+groceries <- read.transactions("/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Week 3/groceries.csv")
+data(Groceries)
+```
+```{r}
+# Create an item frequency plot for the top 20 items
+itemFrequencyPlot(Groceries,topN=20,type="absolute")
+```
+```{r}
+# Get the rules
+rules <- apriori(Groceries, parameter = list(supp = 0.001, conf = 0.8))
+ 
+# Show the top 5 rules, but only 2 digits
+options(digits=2)
+inspect(rules[1:5])
+
+# Observations:
+# This reads easily, for example: if someone buys yogurt and cereals, they are 81% likely to buy whole milk too.
+
+```
+
+```{r}
+# Sort the rules
+rules<-sort(rules, by="confidence", decreasing=TRUE)
+inspect(rules)
+```
+```{r}
+
+rules <- apriori(Groceries, parameter = list(supp = 0.001, conf = 0.8,maxlen=3))
+inspect(rules)
+```
+```{r}
+# Eliminate redundancies
+subset.matrix <- is.subset(rules, rules)
+subset.matrix[lower.tri(subset.matrix, diag=T)] <- NA
+redundant <- colSums(subset.matrix, na.rm=T) >= 1
+rules.pruned <- rules[!redundant]
+rules<-rules.pruned
+```
+```{r}
+# Targetting Items
+rules<-apriori(data=Groceries, parameter=list(supp=0.001,conf = 0.08), 
+               appearance = list(default="lhs",rhs="whole milk"),
+               control = list(verbose=F))
+rules<-sort(rules, decreasing=TRUE,by="confidence")
+inspect(rules[1:5])
+```
+```{r}
+# LHS - Milk
+rules<-apriori(data=Groceries, parameter=list(supp=0.001,conf = 0.15,minlen=2), 
+               appearance = list(default="rhs",lhs="whole milk"),
+               control = list(verbose=F))
+rules<-sort(rules, decreasing=TRUE,by="confidence")
+inspect(rules[1:5])
+```
+```{r}
+# Visualize
+plot(rules,method="graph",interactive=TRUE)
+```
+
+```{r}
+retail <- read.transactions("/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Week 3/retail.csv", format="basket", sep=",")
+```
+
+```{r}
+rules <- apriori(retail, parameter = list(supp = 0.001, conf = 0.8,maxlen=3))
+```
+```{r}
+# Get the rules
+rules2 <- apriori(retail, parameter = list(supp = 0.001, conf = 0.8))
+ 
+# Show the top 5 rules, but only 2 digits
+options(digits=2)
+inspect(rules2[1:5])
+```
+```{r}
+# Sort the rules
+rules2<-sort(rules2, by="confidence", decreasing=TRUE)
+inspect(rules2)
+```
+```{r}
+rules2 <- apriori(retail, parameter = list(supp = 0.001, conf = 0.8,maxlen=3))
+inspect(rules2)
+```
+```{r}
+# Eliminate redundancies
+subset.matrix <- is.subset(rules2, rules2)
+subset.matrix[lower.tri(subset.matrix, diag=T)] <- NA
+redundant <- colSums(subset.matrix, na.rm=T) >= 1
+rules2.pruned <- rules2[!redundant]
+rules2<-rules2.pruned
+```
+
+```{r}
+```
+

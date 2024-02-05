@@ -1,0 +1,129 @@
+---
+title: "Async2.14"
+output: html_document
+date: "2023-07-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+titanicFilePath <- "/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Week 2/Async/Titanic Kaggle/Tieng_Tim_Async/test.csv"
+Titanic <- read.csv(titanicFilePath)
+
+
+survived_factor=factor(Titanic$Survived)
+str(survived_factor)
+pclass_ordered=ordered(Titanic$Pclass)
+str(pclass_ordered)
+mons=c("Jan",	"Jan",	"Feb",	"Feb",	"Mar",	"Apr",	"May",	"Jun",	"Jul",	"Aug",	"Sep",	
+"Oct",	"Oct",	"Nov",	"Dec",	"Dec")
+table(mons)
+mons_factor=factor(mons,	levels=c("Jan",	"Feb",	"Mar",	"Apr",	"May",	"Jun",	"Jul",	
+"Aug",	"Sep",	"Oct",	"Nov",	"Dec"),	ordered=TRUE)
+
+```
+```{r}
+complete.cases(Titanic)	#	Returns	a	logical	vector	indicating	which	cases	are	complete.	True	represents	NON	missing	value
+
+#	list	rows	of	data	that	do	NOT	have	missing	values
+Titanic[complete.cases(Titanic),]			#	The	square	brackets	indicates	the	index	of selected	data	with	format	[row,	column].
+
+nrow(Titanic[complete.cases(Titanic),])
+
+#	list	rows	of	data	that	have	missing	values
+Titanic[!complete.cases(Titanic),]		#	The	exclamation	mark	means	NOT	cout how	many	missing	values	in	a	column
+# view(Titanic)
+length(which(!is.na(Titanic$Age)))
+```
+```{r}
+# Visualization
+
+#	Histogram
+hist(Titanic$Age)	#	Note:	the	variable	must	be	numeric
+
+#	Boxplot
+boxplot(Titanic$Age)
+qt	=	quantile(Titanic$Age,	na.rm=TRUE)	#	quartile,	remove	missing	values
+IQR=qt[['75%']]-qt[['25%']]	#	Interquartile	range
+#	Scatterplot
+plot(Titanic$Age,	Titanic$Fare)
+#	Crosstab
+Titanic.tab=table(Titanic$Sex,	Titanic$Survived)
+#	Pie	chart
+pie(table(Titanic$Sex))
+#	Boxplot
+boxplot(Titanic$Age)
+qt	=	quantile(itanic$Age,	na.rm=TRUE)	#	quartile,	remove	missing	values
+IQR=qt[['75%']]-qt[['25%']]	#	Interquartile	range
+```
+```{r}
+# Handle missing values
+
+Titanic$Age[is.na(Titanic$Age)]	<- mean(Titanic$Age,	na.rm	=	TRUE)
+# Ignore	the	Missing	Value	During	Analysis
+Titanic	<- Titanic[complete.cases(Titanic),]
+# or	
+Titanic	<- na.omit(Titanic)
+
+str(Titanic)
+View(Titanic)
+```
+```{r}
+# Data aggregation
+sales	<- read.csv("/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Week 2/sales.csv",1)
+
+attach(sales)
+
+#	How	many	products	were	sold	each	day	in	each	region?
+salesByRegion	<-aggregate(cbind(Mon,Tue,Wed,Thu,Fri,Sat,Sun),by=list(Group.region=Region),FUN=sum)	#	Calculate	the	total	for	each	region
+View(salesByRegion)
+#	Note:	by	variables	must	be	in	a	list	(even	if	there	is	only	one)
+```
+```{r}
+# Aggregate	rows	and	columns
+
+#	What	were	the	average	sales	for	each	region	during	the	weekend?
+InWeekend <- rowSums(sales[, c("Sat", "Sun")])	#	Sum	column	“Sat”	and	“Sun”	by	each	row
+
+salesNew	<- data.frame(sales,InWeekend)	#	Add	new	column	into	original	dataframe
+
+salesInWeekend	<-aggregate(InWeekend,	by=list(Region),	FUN=mean)	#	Calculate	 the	mean	for	each	region
+detach(sales)
+```
+```{r}
+# Discretization:
+# Take	attribute	“Age”	in	Titanic	data	as	example discretize	age	into	seven	bins
+age	<- cut(Titanic$Age,	breaks	=	
+c(0,10,20,30,40,50,60,Inf),labels=c("child","teens","twenties","thirties","fourties","fifties","old"))
+
+age
+```
+```{r}
+plot(Titanic$Age,	log(Titanic$Age))
+# Calculating	Z-score	with	R Using	the	attribute	“Age”	in	Titanic	data function	“scale”
+scale(Titanic$Age,	center	=	TRUE,	scale	=	TRUE)
+
+(Titanic$Age-mean(Titanic$Age,	na.rm	=	TRUE))/sd(Titanic$Age,	na.rm	=	TRUE)
+plot(Titanic$Age,	scale(Titanic$Age,	center	=	TRUE,	scale	=	TRUE))
+# Min-max	transformation	with	R
+Min_max	<- (Titanic$Agemin(Titanic$Age,na.rm=TRUE))/(max(Titanic$Age,na.rm=TRUE)-
+min(Titanic$Age,na.rm=TRUE))
+plot(Min_max,	Titanic$Age)
+```
+```{r}
+# Systematic	sampling:
+ss=Titanic[Titanic$PassengerId%%10==0,]	#	sample	lines	#10,	20,	30,	…
+nrow(ss)
+
+ss=Titanic[seq(1,	nrow(Titanic),10),]	#	sample	lines	#1,	#11,	#21,	…
+
+ss=Titanic[seq(0,	nrow(Titanic),10),]	#	sample	lines	#10,	#20,	…
+```

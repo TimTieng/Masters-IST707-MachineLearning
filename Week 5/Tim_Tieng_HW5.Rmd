@@ -1,0 +1,321 @@
+---
+title: "Tim_Tieng_HW4"
+author: "Tim Tieng"
+date: "`r Sys.Date()`"
+output: html_document
+# Attestation - 
+# I referenced the reports and code repository provided in the IST-707 GH repo
+# To complete this assignment. I used the code and example reports to help
+# guide process and analysis.---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Install Packages
+# install.packages("factoextra")
+
+# Load Packages
+library(arules)
+library(arulesViz)
+library(ggplot2)
+library(tidyverse)
+library(psych)
+library(cluster)
+library(factoextra)
+library(dendextend)
+library(dplyr)
+```
+
+```{r}
+# Load the data
+federalistPapers <- read.csv("/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Week 4/HW 4/fedPapers85.csv", na.strings = c(""))
+
+# describe/summarize
+str(federalistPapers)
+
+describe(federalistPapers)
+
+# Observations:
+# this R output provides preliminary information about the data set, including its size, data types, and summary statistics for each word's frequency across the documents. 
+# This information can be helpful for analysts to understand the structure and content of the dataset and to perform further data analysis and modeling tasks.
+```
+
+```{r}
+# Preliminary look of raw data
+View(federalistPapers)
+
+# Breakdown of how many papers were written by a specific author
+# Total of 5 categories, where HM == Hamilton/Madison Co-Authored paper
+# Dispt = Unknown author
+table(federalistPapers[,1])
+```
+
+```{r}
+# Visualize author breakdown
+result<- table(federalistPapers[,1])
+
+authorsDF <- as.data.frame(result)
+
+# create a vector of colors
+colors <- c("#1f78b4", "#33a02c", "#e31a1c", "#ff7f00", "#6a3d9a")
+
+pie_chart <- ggplot(authorsDF, aes(x = "", y = Freq, fill=factor(Var1))) +
+  geom_bar(stat = "identity", color = "black") +
+  coord_polar("y", start = 0) +
+  labs(fill = "Author") +
+  ggtitle("Author Breakdown - Pie Chart")+
+  theme_void() +
+  scale_fill_manual(values = colors)
+
+pie_chart
+```
+
+
+```{r}
+# Check for null values
+sum(is.na(federalistPapers))
+```
+
+```{r}
+# Create dataframes for each author via subsetting
+
+hamiltonPapers <- federalistPapers[federalistPapers$author == 'Hamilton',]
+hmPapers <-data.frame(federalistPapers[federalistPapers$author == 'HM',])
+jayPapers <- federalistPapers[federalistPapers$author == 'Jay',]
+madisonPapers <- federalistPapers[federalistPapers$author == 'Madison',]
+disputedPapers <- federalistPapers[federalistPapers$author == 'dispt',]
+
+# inspect
+str(hamiltonPapers)
+str(hmPapers)
+str(jayPapers)
+str(madisonPapers)
+str(disputedPapers)
+```
+
+```{r}
+# Create a function that finds the average  of a word for a specific author
+
+createWordMean <- function(x){
+  y <- ncol(x) # Calculate the number of columns to use as length for iteration
+  x <- colMeans(x[,3:y]) # calculates the column means for columns from the third column (3) to the last column for every row
+  newVector1 <- c() # Empty array
+  for (i in 1:length(x)) {
+    newVector1[i] <-x[[i]]
+  }
+  print(newVector1)
+}
+```
+
+
+```{r}
+# Call the function on each author array
+
+hamiltonVector <- createWordMean(hamiltonPapers)
+hmVector <- createWordMean(hmPapers)
+jayVector <- createWordMean(jayPapers)
+madisonVector <- createWordMean(madisonPapers)
+
+# Print
+table(hamiltonVector)
+table(hmVector)
+table(jayVector)
+table(madisonVector)
+```
+
+```{r}
+
+columns <- colnames(hamiltonPapers)
+
+# Use results to create a new dataframe for use
+
+newDataFrame1 <- hamiltonPapers
+newDataFrame1 <- data.frame(rbind(hamiltonVector,hmVector,jayVector,madisonVector))
+
+# Name the columns 
+colnames(newDataFrame1) <- columns[3:length(columns)]
+
+newDataFrame1[]
+```
+
+```{r}
+# Find the variance of each word
+
+wordVariance <- sapply(newDataFrame1, var)
+
+# Order it and plot it
+orderedVariance <- sort(wordVariance, decreasing = TRUE)
+plot(orderedVariance)
+
+# Observations
+# Higher variance features can have a more significant impact on the clustering process in K-means. They might contribute more to the calculation of cluster centroids, 
+# potentially leading to more distinct and well-separated clusters. By analyzing the ordered variances, we can decide whether to include all features or select a 
+# subset of high-variance features for improved clustering results.
+
+# Understanding the variance distribution of features can assist in making informed decisions about feature selection, 
+# improving the quality of clustering, and potentially revealing underlying structures in the data.
+```
+```{r}
+#set the good words as the top 40% of words
+goodWords <- data.frame(orderedVariance)
+
+#number of words chosen
+length(rownames(goodWords))
+
+#words chosen
+rownames(goodWords)
+```
+```{r}
+#create a new data frame of only the "good words"
+smallFrame <- federalistPapers[,c("author", "filename",rownames(goodWords))]
+
+#rename the rows with their corresponding filename
+rownames(smallFrame) <- smallFrame$filename
+rownames(federalistPapers) <- federalistPapers$filename
+smallFrame
+```
+
+```{r}
+treeData_small<-as.data.frame(smallFrame)
+treeData_small <- treeData_small[,-1]
+
+treeData_small <- treeData_Small[-c(which(treeData_small$author=='Jay'), which(treeData_Small$author=='HM'))]
+treeData_small <- droplevels(treeData_small)
+treeData_small <- treeData_small[,-2]
+treeData_small <- treeData_small[,c(2:ncol(treeData_small),1)]
+treeData_small_disputed <- treeData_small[1:11,]
+treeData_small_full_noD <- treeData_small[-c(1:11),]
+
+```
+
+
+```{r}
+# K-Means
+
+# Remove author names from dataset for clustering purposes
+federalistPapers_KMeans <-federalistPapers[,2:72]
+
+# Make the file names the row names. Need a dataframe of numerical values for k-means
+rownames(federalistPapers_KMeans) <- federalistPapers_KMeans[,1]
+federalistPapers_KMeans[,1] <- NULL
+
+# View(federalistPapers_KMeans)
+
+# Determine "Optimal" number of clusters
+fviz_nbclust(federalistPapers, FUN=hcut,method = "wss")
+fviz_nbclust(federalistPapers, FUN =hcut, method = "silhouette")
+
+# Set seed for fixed random seed
+set.seed(20)
+
+# run k-means
+Clusters <- kmeans(federalistPapers_KMeans, 5) # Sil value
+federalistPapers_KMeans$Clusters <- as.factor(Clusters$cluster)
+
+str(Clusters)
+Clusters$centers
+```
+
+```{r}
+# Add Clusters to the Dataframe
+federalistPapers_KMeans2 <- federalistPapers
+federalistPapers_KMeans2$Clusters <- as.factor(Clusters$cluster)
+
+# Plot KMeans 1
+clusplot(federalistPapers_KMeans, federalistPapers_KMeans$Clusters, color= TRUE, shade=TRUE, labels=0, lines=0)
+
+```
+
+```{r}
+# Plot KMeans2
+
+ggplot(data=federalistPapers_KMeans2, aes(x=author, fill=Clusters))+
+  geom_bar(stat="count")+
+  labs(title= "K = ?") +
+  theme(plot.title = element_text(hjust = 0.5), text=element_text(size = 15))
+```
+
+```{r}
+# Hierarchical Clustering Algorithms (HAC)
+
+# Remove author names from data set
+federalistPapers_HAC <- federalistPapers[,c(2:72)]
+
+# Make the file names the row names. Need a data frame of numerical values for HAC
+rownames(federalistPapers_HAC) <- federalistPapers_HAC[,1]
+federalistPapers_HAC[,1] <- NULL
+
+#View(federalistPapers_HAC)
+
+# Calculate distance in a variety of ways
+distance  <- dist(federalistPapers_HAC, method = "euclidean")
+distance2 <- dist(federalistPapers_HAC, method = "maximum")
+distance3 <- dist(federalistPapers_HAC, method = "manhattan")
+distance4 <- dist(federalistPapers_HAC, method = "canberra")
+distance5 <- dist(federalistPapers_HAC, method = "binary")
+distance6 <- dist(federalistPapers_HAC, method = "minkowski")
+```
+
+```{r}
+# Below we display the results of HAC. The boxes indicate clusters.
+
+HAC <- hclust(distance, method="complete")
+plot(HAC, cex=0.6, hang=-1)
+rect.hclust(HAC, k =2, border=2:5)
+
+HAC2 <- hclust(distance2, method="complete")
+plot(HAC, cex=0.6, hang=-1)
+rect.hclust(HAC, k =2, border=2:5)
+
+HAC3 <- hclust(distance3, method="complete")
+plot(HAC2, cex=0.6, hang=-1)
+rect.hclust(HAC2, k =2, border=2:5)
+
+HAC4 <- hclust(distance4, method="complete")
+plot(HAC2, cex=0.6, hang=-1)
+rect.hclust(HAC2, k =2, border=2:5)
+
+HAC5 <- hclust(distance5, method="complete")
+plot(HAC2, cex=0.6, hang=-1)
+rect.hclust(HAC2, k =2, border=2:5)
+
+HAC6 <- hclust(distance6, method="complete")
+plot(HAC2, cex=0.6, hang=-1)
+rect.hclust(HAC2, k =2, border=2:5)
+
+```
+
+```{r}
+
+##Make Train and Test sets
+numDisputed = 11
+numTotalPapers = nrow(Papers_DF1)
+trainRatio <- .60
+set.seed(11) # Set Seed so that same sample can be reproduced in future also
+sample <- sample.int(n = numTotalPapers-numDisputed, size = floor(trainRatio*numTotalPapers), replace = FALSE)
+newSample = sample + numDisputed
+train <- data.frame(Papers_DF1[newSample, ])
+test <- Papers_DF1[-newSample, ]
+# train / test ratio
+length(newSample)/nrow(Papers_DF1)
+
+```
+
+```{r}
+##Decision Tree Models 
+#Train Tree Model 1
+train_tree1 <- rpart(Author~ ., data = train, method="class", control=rpart.control(cp=0))
+summary(train_tree1)
+#predict the test dataset using the model for train tree No. 1
+predicted1= predict(train_tree1, test, type="class")
+#plot number of splits
+rsq.rpart(train_tree1)
+plotcp(train_tree1)
+#plot the decision tree
+fancyRpartPlot(train_tree1)
+#confusion matrix to find correct and incorrect predictions
+table(Authorship=predicted1, true=test$Author)
+```
+

@@ -1,0 +1,432 @@
+---
+title: "Tim_Tieng_ProjectDraft"
+author: "Tim Tieng"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r}
+# Install Additional Packagges:
+# install.packages("psych")
+# install.packages('forecast')
+# install.packages('tseries')
+#install.packages("leaflet")
+# install.packages("ggthemes")
+# install.packages("maps")
+
+# Load Packages
+library(arules)
+library(arulesViz)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(psych)
+library(forecast)
+library(tseries)
+library(leaflet)
+library(ggthemes)
+library(maps)
+library(cluster)
+library(factoextra)
+library(caret)
+library(glmnet)
+```
+
+```{r}
+# Load 3x Separate Csv Files
+
+netflixUsersData <- read.csv("/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Project/Netflix Data Files/Tim Files/Netflix Userbase.csv")
+titlesData <- read.csv("/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Project/Netflix Data Files/Tim Files/titles.csv")
+creditsData <- read.csv("/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Project/Netflix Data Files/Tim Files/credits.csv")
+
+# Preliminary Check of successful loading and checking of datatypes
+str(netflixUsersData)
+# head(netflixUsersData)
+print("BREAK")
+
+str(titlesData)
+# head(titlesData)
+print("BREAK")
+
+str(creditsData)
+# head(creditsData)
+
+# Unable to combine files in timely manner. Using Ben's files
+View(netflixUsersData)
+# View(titlesData)
+# View(creditsData)
+
+```
+```{r}
+# Ben's Files
+userBehaviorData <- read_excel("/Users/timtieng/Library/CloudStorage/OneDrive-Personal/Desktop/Masters in Applied Data Science/IST-707 Machine Learning/Project/Netflix Data Files/Ben Files/valid_user_trans.xlsx")
+
+userBehaviorDF <- data.frame(userBehaviorData) # Use later potentially
+
+```
+
+```{r}
+# Inspect
+str(userBehaviorData)
+
+describe(userBehaviorData)
+```
+```{r}
+# preliminary Visualizations to see if any additional questions presents themselves- Distribution of specific attributes
+
+# Histogram for "imdb_rating"
+ggplot(userBehaviorData, aes(x = imdb_rating)) +
+  geom_histogram(binwidth = 0.5, fill = "lightblue", color = "black") +
+  labs(title = "Distribution of IMDb Ratings",
+       x = "IMDb Rating", y = "Frequency")
+
+# Histogram for imdb_votes
+ggplot(userBehaviorData, aes(x = imdb_votes)) +
+  geom_histogram(binwidth = 10000, fill = "lightgreen", color = "black") +
+  labs(title = "Distribution of IMDb Votes",
+       x = "IMDb Votes", y = "Frequency")
+
+# Histogram for rotten tomatoes popularity rating
+ggplot(userBehaviorData, aes(x = tmdb_popularity)) +
+  geom_histogram(binwidth = 5, fill = "pink", color = "black") +
+  labs(title = "Distribution of TMDb Popularity",
+       x = "TMDb Popularity", y = "Frequency")
+
+
+```
+```{r}
+# Datetime - Time Series analysis
+
+time_series <- ts(userBehaviorData$datetime, frequency = 365)
+
+# Plot it
+plot(time_series, main = "Time Series Plot")
+decomposition <- decompose(time_series)
+plot(decomposition)
+```
+```{r}
+# Test for Seasonality
+
+# For many time series analysis methods, it is important that the data is stationary (i.e., constant mean and variance over time)
+# If the p-value from the ADF test is less than the significance level (e.g., 0.05), then the series is likely stationary.
+adf.test(time_series)
+
+# P-Value = 0.01
+# Output meaning -Since the p-value is 0.01, it is indeed smaller than 0.05, which suggests strong evidence against the null hypothesis of non-stationarity. In conclusion, the result of the ADF test suggests that there is strong evidence to reject the null hypothesis of non-stationarity in favor of the alternative hypothesis of stationarity. 
+# BLUF - the time_series data is likely to be stationary.
+```
+
+```{r}
+# Scatter Plot on ratings column vs duration
+
+# Scatter plot
+ggplot(userBehaviorData, aes(x = run_time, y = imdb_rating)) +
+  geom_point(size = 3, color = "blue") +
+  labs(title = "Scatter Plot of Movie Duration vs. IMDb Rating",
+       x = "Movie Duration (Seconds)",
+       y = "IMDb Rating")
+
+# Line plot to show the trend over time
+ggplot(userBehaviorData, aes(x = run_time, y = imdb_rating, group = 1)) +
+  geom_line(color = "blue") +
+  labs(title = "Line Plot of Movie Duration vs. IMDb Rating",
+       x = "Movie Duration (Seconds)",
+       y = "IMDb Rating")
+
+```
+
+```{r}
+# Question - Does X influence IMDB Rating
+# Correlation Matrices- IMDB 
+
+correlationMatrix1 <-cor(userBehaviorDF$imdb_rating, userBehaviorDF$tmdb_score)
+correlationMatrix2 <-cor(userBehaviorDF$imdb_rating, userBehaviorDF$duration)
+correlationMatrix3 <-cor(userBehaviorDF$imdb_rating, userBehaviorDF$behavior)
+correlationMatrix4 <-cor(userBehaviorDF$imdb_rating, userBehaviorDF$ratio_watched)
+
+
+correlationMatrix1 # Strong positive linear relationship between imdb_rating and tmdb_score; As imdb increases, tmdb is likely to increase
+correlationMatrix2 # Weak or no linear correlation between imdb_rating and duration
+correlationMatrix3 # Weak border line negative relationship
+correlationMatrix4 # very weak
+```
+
+```{r}
+# Cannot get insights,going back to individual data files - netflixUserData DF
+# Purpose - Segmentation Analysis
+
+# Create a pie chart
+ggplot(netflixUsersData, aes(x = "", fill = `Subscription.Type`)) +
+  geom_bar(width = 1) +
+  coord_polar(theta = "y") +
+  theme_void() +
+  labs(title = "User Breakdown - Subscription Types")
+
+```
+
+
+```{r}
+subscription_counts <- netflixUsersData %>%
+  group_by(`Subscription.Type`) %>%
+  summarize(Count = n())
+
+total_users <- sum(subscription_counts$Count)
+
+subscription_counts <- subscription_counts %>%
+  mutate(Percentage = (Count / total_users) * 100)
+
+print(subscription_counts)
+
+```
+
+```{r}
+# User subscription type breakdown by country
+
+# Group by Country and Subscription Type and count users
+subscription_count <- netflixUsersData %>%
+  group_by(Country, `Subscription.Type`) %>%
+  summarize(Count = n()) %>%
+  ungroup()
+
+ggplot(subscription_count, aes(x = Country, y = Count, fill = `Subscription.Type`)) +
+  geom_bar(stat = "identity", position = "stack") +
+  theme_minimal() +
+  labs(title = "Country and Subscription",
+       x = "Country",
+       y = "Count") +
+  theme(legend.position = "top") +
+  coord_flip() +
+  guides(fill = guide_legend(reverse = TRUE))
+```
+
+```{r}
+# Understand the userbase by Country- Potentially identify which countries have the most active users
+
+user_count_by_country <- table(netflixUsersData$Country)
+
+# Convert the table to a data frame for plotting
+user_count_df <- data.frame(Country = names(user_count_by_country),
+                             Count = as.vector(user_count_by_country))
+
+# Create the bar plot
+ggplot(user_count_df, aes(x = reorder(Country, -Count), y = Count, fill = Country)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Number of Netflix Users by Country",
+       x = "Country",
+       y = "Count") +
+  theme(legend.position = "none") +
+  coord_flip()
+
+```
+
+```{r}
+Country.N <- netflixUsersData %>% 
+  count(Country) %>%
+  rename(Country = "Country")
+
+world_map <- map_data("world")
+allmap <- full_join(Country.N, world_map, by = c("Country" = "region"))
+
+options(repr.plot.width = 14, repr.plot.height = 8)
+
+ggplot(allmap, aes(long, lat, group = group, fill = n)) +
+  geom_polygon(color = "black") +
+  theme_void() +
+  ggtitle("Heatmap of Users per Country") +
+  scale_fill_continuous(type = "viridis", trans = "sqrt", guide = "colorbar") +
+  coord_quickmap()
+```
+
+
+```{r}
+# Create a histogram of user ages
+ggplot(netflixUsersData, aes(x = Age)) +
+  geom_histogram(binwidth = 5, fill = "light blue", color ="black") +
+  theme_minimal() +
+  labs(title = "Age Distribution of Netflix Users",
+       x = "Age",
+       y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+# Device breakdown - see how 
+device_counts <- table(netflixUsersData$Device)
+explode <- c(0.1, 0.1, 0.1, 0.1)
+
+# Create a data frame for plotting
+device_df <- data.frame(Device = names(device_counts),
+                         Count = as.vector(device_counts))
+
+# Create the pie chart
+ggplot(device_df, aes(x = "", y = Count, fill = Device)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  theme_void() +
+  scale_fill_manual(values = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728")) +
+  geom_text(aes(label = sprintf("%.1f%%", (Count / sum(Count)) * 100)),
+            position = position_stack(vjust = 0.5)) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme(legend.position = "top") +
+  labs(title = "Device Distribution",
+       fill = "Device") +
+  theme(legend.position = "top") +
+  coord_flip()
+```
+
+```{r}
+# Clean the date time column
+netflixUsersData <- netflixUsersData %>%
+  mutate(
+    `Join.Date` = as.Date(`Join.Date`, format = "%d-%m-%y"),
+    `Last.Payment.Date` = as.Date(`Last.Payment.Date`, format = "%d-%m-%y"),
+    `Duration.Of.Plan` = as.integer(`Last.Payment.Date` - `Join.Date`)
+  )
+
+head(netflixUsersData)
+```
+
+```{r}
+# Create a function in that we add months of the Netflix plan
+netflixUsersData <- netflixUsersData %>%
+  mutate(
+    `Duration.In.Month` = `Duration.Of.Plan` / 30,
+    `Monthly.Revenue.1` = `Monthly.Revenue` * `Duration.In.Month`
+  )
+
+monthly_country_revenue <- netflixUsersData %>%
+  group_by(Country) %>%
+  summarize(monthly_revenue_sum = sum(`Monthly.Revenue.1`)) %>%
+  arrange(desc(monthly_revenue_sum))
+
+# Create the bar plot
+ggplot(monthly_country_revenue, aes(x = reorder(Country, -monthly_revenue_sum), y = monthly_revenue_sum)) +
+  geom_bar(stat = "identity", fill = "light blue") +
+  theme_minimal() +
+  labs(title = "Countries with the Most Monthly Revenue",
+       x = "Countries",
+       y = "Monthly Revenue Sum") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+```
+
+```{r}
+# Churn Rate Calculation 
+churn_data <- netflixUsersData %>%
+  mutate(Last.Payment.Date = as.Date(Last.Payment.Date, format = "%d-%m-%y"),
+         Churn = ifelse(Last.Payment.Date < Sys.Date() - 30, 1, 0)) %>%
+  summarize(Churn_Rate = sum(Churn) / n())
+
+print(churn_data)
+
+# This is very weird. This suggests that tall the users deleted their accounts. Highly unlikely
+```
+
+
+```{r}
+# Convert Join Date and Last Payment Date to Date type
+netflixUsersData$Join.Date <- as.Date(netflixUsersData$Join.Date, format = "%d-%m-%y")
+netflixUsersData$Last.Payment.Date <- as.Date(netflixUsersData$Last.Payment.Date, format = "%d-%m-%y")
+
+# Calculate Churn Rate per month
+churn_data <- netflixUsersData %>%
+  mutate(Churn = ifelse(Last.Payment.Date < Sys.Date() - 30, 1, 0)) %>% # Example: Churn if last payment date is more than 30 days ago
+  group_by(Year = lubridate::year(Last.Payment.Date), Month = lubridate::month(Last.Payment.Date)) %>%
+  summarize(Churn_Rate = sum(Churn) / n()) %>%
+  arrange(Month,)
+
+# Create a time series plot
+ggplot(churn_data, aes(x = as.Date(paste(Year, Month, "01", sep = "-")), y = Churn_Rate)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Churn Rates Over Time",
+       x = "Date",
+       y = "Churn Rate") +
+  theme_minimal()
+```
+Above is not accurate. a churn rate of 100% means there is no users. Move on.
+```{r}
+View(netflixUsersData)
+```
+
+```{r}
+# Classificaiton Model Tuning - Device prediction
+
+# Data preprocessing
+# Convert categorical variables to factors
+netflixUsersData$Subscription.Type <- as.factor(netflixUsersData$Subscription.Type)
+netflixUsersData$Country <- as.factor(netflixUsersData$Country)
+netflixUsersData$Gender <- as.factor(netflixUsersData$Gender)
+netflixUsersData$Device <- as.factor(netflixUsersData$Device)
+
+# Split the data into training and testing sets
+set.seed(123)  # for reproducibility
+trainIndex <- createDataPartition(netflixUsersData$Device, p = 0.8, 
+                                   list = FALSE, 
+                                   times = 1)
+trainData <- netflixUsersData[ trainIndex,]
+testData <- netflixUsersData[-trainIndex,]
+
+# Check levels of categorical variables
+print(levels(netflixUsersData$Subscription.Type))
+print(levels(netflixUsersData$Country))
+print(levels(netflixUsersData$Gender))
+print(levels(netflixUsersData$Plan.Duration))
+
+# Check unique values of the response variable "Device"
+unique(netflixUsersData$Device) # If there are values outside [0, 1], consider data cleaning or transformation.
+
+# Remove the variable with one level
+# Remove the "Plan.Duration" column
+# netflixUsersData <- subset(netflixUsersData, select = -Plan.Duration)
+
+# Build the logistic regression model
+model <- glm(Device ~ Subscription.Type + Country + Gender, data = trainData, family = binomial)
+
+
+# Make predictions on the test set
+predictions <- predict(model, newdata = testData, type = "response")
+
+# Convert probability predictions to device classes (e.g., Smartphone, Tablet, Smart TV, Laptop)
+predictedDevice <- ifelse(predictions > 0.5, "Smartphone", "Other")
+
+# Getting an error on Confusion Matrix
+length(predictedDevice) # Length is the same -499
+length(testData$Device) # length is the same - 499
+
+class(predictedDevice) # class = Character
+class(testData$Device) # Class = factor
+
+# Update class of predictedDevice
+predictedDevice <- as.factor(predictedDevice)
+# Check
+class(predictedDevice) # class = Character
+class(testData$Device) # Class = factor
+
+# Assuming predictedDevice and testData$Device are both factors  vectors, We can evaluate
+confusionMatrix(predictedDevice, testData$Device)
+
+
+# You can also use other evaluation metrics to assess the model's performance
+
+```
+Accuracy: This is the overall accuracy of the model, which measures the proportion of correctly classified instances. In this case, the accuracy is 0.2485, which is quite low.
+
+95% CI: The 95% confidence interval for accuracy.
+
+No Information Rate (NIR): The accuracy that would be achieved by predicting the majority class for all instances. In this case, it's 0.2545.
+
+P-Value [Acc > NIR]: The p-value associated with comparing the model's accuracy to the No Information Rate. It suggests whether the model performs significantly better than random guessing.
+
+Overall, the confusion matrix and associated statistics indicate how well the model is performing for each class. In this case,  the model is struggling to correctly classify instances into most classes, which may require further model tuning or data preprocessing.
+
+```{r}
+
+```
+
